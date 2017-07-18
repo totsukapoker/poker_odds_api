@@ -87,7 +87,10 @@ def get_best_hands(best_hands, hands):
     is_best = True
 
     # ハンドランクで判定
-    if hands['conditions'] > best_hands['conditions']:
+    if hands['conditions'] < best_hands['conditions']:
+        is_draw = False
+        is_best = False
+    elif hands['conditions'] > best_hands['conditions']:
         best_hands = hands
         is_draw = False
         is_best = True
@@ -117,10 +120,6 @@ def get_best_hands(best_hands, hands):
                     is_draw = False
                     is_best = False
                     break
-
-    elif hands['conditions'] < best_hands['conditions']:
-        is_draw = False
-        is_best = False
 
     best_hands['is_draw'] = is_draw
     best_hands['is_best'] = is_best
@@ -171,7 +170,7 @@ def hand_checker(param_hands):
 
     # todo: rank_num の要素数無意味に15個とってしまっている
     rank_nums = [0] * 15
-    suit_nums = [0] * 4
+    # suit_nums = [0] * 4
     group_counts = [0] * 5
     is_straight = False
     is_flush = True
