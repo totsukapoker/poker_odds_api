@@ -1,4 +1,4 @@
-#!/user/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 u"""EquityCalculator"""
 
@@ -133,6 +133,7 @@ def seven_hand_checker(param_hands):
     :param list param_hands: ハンド　+ コミュニティの7枚のカード
     :return list best_hands: ハンドの中で最も強い組み合わせ
     """
+    # start_time = time.time()
     global CARDS_RANK
     val_hands = []
     for val in param_hands:
@@ -143,6 +144,7 @@ def seven_hand_checker(param_hands):
     val_hands = sorted(val_hands, key=lambda x: CARDS_RANK[x['rank']], reverse=True)
 
     sorted_hands_list = list(itertools.combinations(val_hands, 5))
+    # print(sorted_hands_list)
 
     best_hands = None
     for sorted_hands in sorted_hands_list:
@@ -152,6 +154,9 @@ def seven_hand_checker(param_hands):
             hands = hand_checker(sorted_hands)
             best_hands = get_best_hands(best_hands, hands)
 
+    # end_time = time.time()
+    # interval = end_time - start_time
+    # print("seven: " + str(interval) + "sec")
     return best_hands
 
 
@@ -162,11 +167,14 @@ def hand_checker(param_hands):
     :return dict: 判定結果
     """
     global CARDS_RANK
+    # start_time = time.time()
+
+    # todo: rank_num の要素数無意味に15個とってしまっている
     rank_nums = [0] * 15
     suit_nums = [0] * 4
     group_counts = [0] * 5
     is_straight = False
-    is_flush = False
+    is_flush = True
     hands_rank = {
         "conditions": 0,
         "conditions_rank": [],
@@ -192,11 +200,10 @@ def hand_checker(param_hands):
             is_straight = True
 
         # フラッシュ判定
-        for hands in param_hands:
-            suit_nums[CARDS_SUIT[hands['suit']]] += 1
-
-        if suit_nums.count(5) > 0:
-            is_flush = True
+        for i, hands in enumerate(param_hands):
+            if hands != param_hands[i + 1]['suit']:
+                is_flush = False
+                break
 
         # ロイヤル判定
         if is_flush and is_straight and CARDS_RANK[param_hands[4]['rank']] == 14:
@@ -251,6 +258,9 @@ def hand_checker(param_hands):
             hands_rank['conditions_rank'] = [rank_nums.index(2)]
             hands_rank['kicker_rank'] = sorted([i for i, x in enumerate(rank_nums) if x == 1], reverse=True)
 
+    # end_time = time.time()
+    # interval = end_time - start_time
+    # print("hands: " + str(interval) + "sec")
     return hands_rank
 
 
@@ -297,6 +307,7 @@ def equity_calculator():
     community = post_param['community'].split(',')
     com_sim = get_community_simulation(community)
 
+    # todo: このループ3回やってるんだよなぁ・・・
     for key, value in post_param.items():
         if re.compile("player*").search(key):
             win_count[key] = 0
@@ -306,6 +317,7 @@ def equity_calculator():
         draw_players = []
         best_hands = None
 
+        # todo: このループ3回やってるんだよなぁ・・・
         for key, value in post_param.items():
             if re.compile("player*").search(key):
                 hands = value["hands"].split(',') + com_val
@@ -344,6 +356,7 @@ def equity_calculator():
 
         loop_count += 1
 
+    # todo: このループ3回やってるんだよなぁ・・・
     for key, value in post_param.items():
         if re.compile("player*").search(key):
             win_rate[key] = round(win_count[key]/loop_count, 4)
