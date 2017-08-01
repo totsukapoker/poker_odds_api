@@ -6,6 +6,7 @@ import json
 import re
 import itertools
 import time
+from deuces import Card, Deck, Evaluator, lookup
 from bottle import route, run, request, HTTPResponse
 
 cards = []
@@ -282,6 +283,7 @@ def get_community_simulation(param_com):
     # list型への変換は先で行う
     community = param_com.split(',')
 
+
     com_list = []
     if len(community[0]) == 0:
         gen_list = list((itertools.combinations(cards, 5)))
@@ -309,6 +311,9 @@ def equity_calculator():
     loop_count = 0
     post_param = request.json
     start_time = time.time()
+
+    card = Card.new('Kh')
+    print(card)
 
     # デッキを生成
     gen_cards()
@@ -382,5 +387,52 @@ def equity_calculator():
     response.set_header('Content-Type', 'application/json')
 
     return response
+
+
+@route('/test', method="POST")
+def poker_odds_api():
+    u"""
+    deuces
+    :return HTTPResponse:
+    """
+    global cards
+    win_rate = {}
+    win_count = {}
+    loop_count = 0
+    post_param = request.json
+    start_time = time.time()
+
+    community = post_param['community']
+    community = community.split(',')
+    board = []
+    for com in community:
+        board.append(Card.new(com))
+
+    for key, value in post_param.items():
+        if re.compile("player*").search(key):
+            hand = []
+            for val in value["hands"].split(','):
+                hand.append(Card.new(val))
+            Card.print_pretty_cards(board + hand)
+
+
+    # # todo: このループ3回やってるんだよなぁ・・・
+    # for key, value in post_param.items():
+    #     if re.compile("player*").search(key):
+    #         win_count[key] = 0
+    #
+    # end_time = time.time()
+    # interval = end_time - start_time
+    # print(str(interval) + "秒")
+    # print(loop_count)
+
+    # Responseパラメータを作る
+    response_body = json.dumps(win_rate, sort_keys=True, indent=4)
+    response = HTTPResponse(status=200, body=response_body)
+    response.set_header('Content-Type', 'application/json')
+
+    return response
+
+
 
 run(host='localhost', port=8080)
