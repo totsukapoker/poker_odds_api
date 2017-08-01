@@ -6,6 +6,7 @@ import json
 import re
 import itertools
 import time
+from deuces import Card, Deck, Evaluator, lookup
 from bottle import route, run, request, HTTPResponse
 
 cards = []
@@ -129,13 +130,17 @@ def get_best_hands(best_hands, hands):
 
 def seven_hand_checker(param_hands):
     u"""
-    :param list param_hands: ハンド　+ コミュニティの7枚のカード
+    :param string param_hands: ハンド　+ コミュニティの7枚のカード
     :return list best_hands: ハンドの中で最も強い組み合わせ
     """
+    # todo: 適切なライブラリはないか？
     # start_time = time.time()
     global CARDS_RANK
+
+    #
+    hands = param_hands.split(',')
     val_hands = []
-    for val in param_hands:
+    for val in hands:
         val_hands.append({"rank": list(val)[0], "suit": list(val)[1]})
 
     # ハンド + ボードをソートする
@@ -143,7 +148,6 @@ def seven_hand_checker(param_hands):
     val_hands = sorted(val_hands, key=lambda x: CARDS_RANK[x['rank']], reverse=True)
 
     sorted_hands_list = list(itertools.combinations(val_hands, 5))
-    # print(sorted_hands_list)
 
     best_hands = None
     for sorted_hands in sorted_hands_list:
@@ -153,9 +157,6 @@ def seven_hand_checker(param_hands):
             hands = hand_checker(sorted_hands)
             best_hands = get_best_hands(best_hands, hands)
 
-    # end_time = time.time()
-    # interval = end_time - start_time
-    # print("seven: " + str(interval) + "sec")
     return best_hands
 
 
@@ -165,7 +166,9 @@ def hand_checker(param_hands):
     :param list param_hands: ハンド
     :return dict: 判定結果
     """
+    # todo: そもそもハンド + ボード で一気に判定できない？
     global CARDS_RANK
+    global CARDS_SUIT
     # start_time = time.time()
 
     # todo: rank_num の要素数無意味に15個とってしまっている
@@ -199,8 +202,10 @@ def hand_checker(param_hands):
             is_straight = True
 
         # フラッシュ判定
+        # todo: param_hands[-1](存在しない） != param_hands[0] みたいな実装してるのはよろしくない。
+        # todo: 最悪len(p_h) for<len-1とかで実装する
         for i, hands in enumerate(param_hands):
-            if hands != param_hands[i + 1]['suit']:
+            if CARDS_SUIT[param_hands[i - 1]['suit']] != CARDS_SUIT[param_hands[i]['suit']]:
                 is_flush = False
                 break
 
@@ -267,8 +272,17 @@ def get_hand(hands, community):
     return None
 
 
-def get_community_simulation(community):
+def get_community_simulation(param_com):
+    u"""
+    ボード生成メソッド
+    :param string param_com: ボード
+    :return list com_list: ボードとなるハンドの一覧:
+    """
     global cards
+
+    # list型への変換は先で行う
+    community = param_com.split(',')
+
 
     com_list = []
     if len(community[0]) == 0:
@@ -298,12 +312,15 @@ def equity_calculator():
     post_param = request.json
     start_time = time.time()
 
+    card = Card.new('Kh')
+    print(card)
+
     # デッキを生成
     gen_cards()
     # すでに使われいているカードをデッキから排除
     remove_cards(post_param)
 
-    community = post_param['community'].split(',')
+    community = post_param['community']
     com_sim = get_community_simulation(community)
 
     # todo: このループ3回やってるんだよなぁ・・・
@@ -319,8 +336,7 @@ def equity_calculator():
         # todo: このループ3回やってるんだよなぁ・・・
         for key, value in post_param.items():
             if re.compile("player*").search(key):
-                hands = value["hands"].split(',') + com_val
-                #print(hands)
+                hands = value["hands"] + ',' + ','.join(com_val)
                 hands_rank = seven_hand_checker(hands)
                 hands_rank['player'] = key
                 hands_rank['is_best'] = True
@@ -371,5 +387,52 @@ def equity_calculator():
     response.set_header('Content-Type', 'application/json')
 
     return response
+
+
+@route('/test', method="POST")
+def poker_odds_api():
+    u"""
+    deuces
+    :return HTTPResponse:
+    """
+    global cards
+    win_rate = {}
+    win_count = {}
+    loop_count = 0
+    post_param = request.json
+    start_time = time.time()
+
+    community = post_param['community']
+    community = community.split(',')
+    board = []
+    for com in community:
+        board.append(Card.new(com))
+
+    for key, value in post_param.items():
+        if re.compile("player*").search(key):
+            hand = []
+            for val in value["hands"].split(','):
+                hand.append(Card.new(val))
+            Card.print_pretty_cards(board + hand)
+
+
+    # # todo: このループ3回やってるんだよなぁ・・・
+    # for key, value in post_param.items():
+    #     if re.compile("player*").search(key):
+    #         win_count[key] = 0
+    #
+    # end_time = time.time()
+    # interval = end_time - start_time
+    # print(str(interval) + "秒")
+    # print(loop_count)
+
+    # Responseパラメータを作る
+    response_body = json.dumps(win_rate, sort_keys=True, indent=4)
+    response = HTTPResponse(status=200, body=response_body)
+    response.set_header('Content-Type', 'application/json')
+
+    return response
+
+
 
 run(host='localhost', port=8080)
