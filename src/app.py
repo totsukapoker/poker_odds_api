@@ -31,6 +31,21 @@ CARDS_RANK = {
     "K": 13,
     "A": 14,
 }
+CARDS_RANK_HEX = {
+    "2": "2",
+    "3": "3",
+    "4": "4",
+    "5": "5",
+    "6": "6",
+    "7": "7",
+    "8": "8",
+    "9": "9",
+    "T": "A",
+    "J": "B",
+    "Q": "C",
+    "K": "D",
+    "A": "E",
+}
 HAND_CONDITIONS ={
     0: "High Card",
     1: "One Pair",
@@ -131,13 +146,12 @@ def get_best_hands(best_hands, hands):
 def seven_hand_checker(param_hands):
     u"""
     :param string param_hands: ハンド　+ コミュニティの7枚のカード
-    :return list best_hands: ハンドの中で最も強い組み合わせ
+    :return int best_hands: ハンドの中で最も強い組み合わせ
     """
     # todo: 適切なライブラリはないか？
     # start_time = time.time()
     global CARDS_RANK
 
-    #
     hands = param_hands.split(',')
     val_hands = []
     for val in hands:
@@ -147,15 +161,15 @@ def seven_hand_checker(param_hands):
     val_hands = sorted(val_hands, key=lambda x: CARDS_SUIT[x['suit']])
     val_hands = sorted(val_hands, key=lambda x: CARDS_RANK[x['rank']], reverse=True)
 
-    sorted_hands_list = list(itertools.combinations(val_hands, 5))
+    best_hands = hand_checker(val_hands)
 
-    best_hands = None
-    for sorted_hands in sorted_hands_list:
-        if best_hands is None:
-            best_hands = hand_checker(sorted_hands)
-        else:
-            hands = hand_checker(sorted_hands)
-            best_hands = get_best_hands(best_hands, hands)
+    # best_hands = None
+    # for sorted_hands in sorted_hands_list:
+    #     if best_hands is None:
+    #         best_hands = hand_checker(sorted_hands)
+    #     else:
+    #         hands = hand_checker(sorted_hands)
+    #         best_hands = get_best_hands(best_hands, hands)
 
     return best_hands
 
@@ -173,99 +187,74 @@ def hand_checker(param_hands):
 
     # todo: rank_num の要素数無意味に15個とってしまっている
     rank_nums = [0] * 15
-    # suit_nums = [0] * 4
-    group_counts = [0] * 5
+    suit_nums = [0] * 4
+    group_counts = [0] * 7
     is_straight = False
-    is_flush = True
-    hands_rank = {
-        "conditions": 0,
-        "conditions_rank": [],
-        "kicker_rank": [],
-    }
+    is_flush = False
+    is_pair = False
+    hands_rank = "0x"
 
     # ペア判定
     # ランクごとのカードの枚数を取得
     for hands in param_hands:
         rank_nums[CARDS_RANK[hands['rank']]] += 1
+        suit_nums[CARDS_SUIT[hands['suit']]] += 1
 
-    # ペア判定結果
     for pair in range(2, len(group_counts)):
         group_counts[pair] = rank_nums.count(pair)
 
-    # ペアなしの判定
-    if group_counts.count(0) == 5:
-        # ストレート判定
-        if CARDS_RANK[param_hands[0]['rank']] - CARDS_RANK[param_hands[4]['rank']] == 4:
+    # ペア判定
+    if group_counts.count(0) != 7:
+        is_pair = True
+
+    # ストレート判定
+    for i in range(0, 2):
+        if CARDS_RANK[param_hands[i]['rank']] - CARDS_RANK[param_hands[i+4]['rank']] == 4:
             is_straight = True
+            break
         # 1番大きい数字がA且つ2番目に大きい数字が5且つペアではない = Wheel
-        elif CARDS_RANK[param_hands[0]['rank']] == 14 and CARDS_RANK[param_hands[1]['rank']] == 5:
+        elif CARDS_RANK[param_hands[i]['rank']] == 14 and CARDS_RANK[param_hands[i+1]['rank']] == 5:
             is_straight = True
+            break
 
-        # フラッシュ判定
-        # todo: param_hands[-1](存在しない） != param_hands[0] みたいな実装してるのはよろしくない。
-        # todo: 最悪len(p_h) for<len-1とかで実装する
-        for i, hands in enumerate(param_hands):
-            if CARDS_SUIT[param_hands[i - 1]['suit']] != CARDS_SUIT[param_hands[i]['suit']]:
-                is_flush = False
-                break
+    # フラッシュ判定
+    if max(group_counts) > 4:
+       is_flush = True
 
-        # ロイヤル判定
-        if is_flush and is_straight and CARDS_RANK[param_hands[4]['rank']] == 14:
-            hands_rank['conditions'] = 9
-            hands_rank['conditions_rank'] = [CARDS_RANK[param_hands[0]['rank']]]
-            hands_rank['kicker_rank'] = []
-        # ストフラ
-        elif is_flush and is_straight:
-            hands_rank['conditions'] = 8
-            hands_rank['conditions_rank'] = [CARDS_RANK[param_hands[0]['rank']]]
-            hands_rank['kicker_rank'] = []
-        # フラッシュ
-        elif is_flush:
-            hands_rank['conditions'] = 5
-            hands_rank['conditions_rank'] = sorted([i for i, x in enumerate(rank_nums) if x == 1], reverse=True)
-            hands_rank['kicker_rank'] = []
-        # ストレート
-        elif is_straight:
-            hands_rank['conditions'] = 4
-            hands_rank['conditions_rank'] = [CARDS_RANK[param_hands[0]['rank']]]
-            hands_rank['kicker_rank'] = []
-        # ハイカード
-        else:
-            hands_rank['conditions'] = 0
-            hands_rank['conditions_rank'] = sorted([i for i, x in enumerate(rank_nums) if x == 1], reverse=True)
-            hands_rank['kicker_rank'] = []
-    # ペア系判定
+    # ハイカード判定
+    if is_flush is False and is_straight is False and is_pair is False:
+        hands_rank += '2'
+        for i in range(0, 4):
+            hands_rank += CARDS_RANK_HEX[param_hands[i]['rank']]
+        return int(hands_rank, 16)
+
+    # todo:ベンチのため、
+
+    # ロイヤル判定
+    # ストフラ
+    if is_flush and is_straight:
+        hands_rank += '800000'
+    # フラッシュ
+    elif is_flush:
+        hands_rank += '500000'
+    # ストレート
+    elif is_straight:
+        hands_rank += '400000'
+    # クアッズ
+    elif group_counts[4] > 0:
+        hands_rank += '700000'
+    # フル
+    # トリップス
+    elif group_counts[3] > 0:
+        hands_rank += '300000'
+    # ツーペア
+    elif group_counts[2] == 2:
+        hands_rank += '200000'
+    # ワンペア
     else:
-        # クアッズ
-        if group_counts[4] > 0:
-            hands_rank['conditions'] = 7
-            hands_rank['conditions_rank'] = [rank_nums.index(4)]
-            hands_rank['kicker_rank'] = [rank_nums.index(1)]
-        # フルハウス
-        elif group_counts[3] > 0 and group_counts[2] > 0:
-            hands_rank['conditions'] = 6
-            hands_rank['conditions_rank'] = [rank_nums.index(3), rank_nums.index(2)]
-            hands_rank['kicker_rank'] = []
-        # トリップス
-        elif group_counts[3] > 0:
-            hands_rank['conditions'] = 3
-            hands_rank['conditions_rank'] = [rank_nums.index(3)]
-            hands_rank['kicker_rank'] = [i for i, x in enumerate(rank_nums) if x == 1]
-        # ツーペア
-        elif group_counts[2] == 2:
-            hands_rank['conditions'] = 2
-            hands_rank['conditions_rank'] = sorted([i for i, x in enumerate(rank_nums) if x == 2], reverse=True)
-            hands_rank['kicker_rank'] = [rank_nums.index(1)]
-        # ワンペア
-        elif group_counts[2] == 1:
-            hands_rank['conditions'] = 1
-            hands_rank['conditions_rank'] = [rank_nums.index(2)]
-            hands_rank['kicker_rank'] = sorted([i for i, x in enumerate(rank_nums) if x == 1], reverse=True)
+        hands_rank += '100000'
 
-    # end_time = time.time()
-    # interval = end_time - start_time
-    # print("hands: " + str(interval) + "sec")
-    return hands_rank
+    return int(hands_rank, 16)
 
 
 def get_hand(hands, community):
@@ -312,9 +301,6 @@ def equity_calculator():
     post_param = request.json
     start_time = time.time()
 
-    card = Card.new('Kh')
-    print(card)
-
     # デッキを生成
     gen_cards()
     # すでに使われいているカードをデッキから排除
@@ -338,36 +324,32 @@ def equity_calculator():
             if re.compile("player*").search(key):
                 hands = value["hands"] + ',' + ','.join(com_val)
                 hands_rank = seven_hand_checker(hands)
-                hands_rank['player'] = key
-                hands_rank['is_best'] = True
-                hands_rank['is_draw'] = True
                 hands_compare.append(hands_rank)
-                # win_count[key] = 0
 
         for value in hands_compare:
             if best_hands is None:
                 best_hands = value
-
-            else:
-                hands = value
-                best_hands = get_best_hands(best_hands, hands)
-
-                # ドローのプレイヤーを配列にぶち込む
-                if best_hands['is_draw'] and best_hands['is_best'] and len(draw_players) == 0:
-                    draw_players.append(best_hands['player'])
-                    draw_players.append(hands['player'])
-                elif best_hands['is_draw'] and best_hands['is_best']:
-                    draw_players.append(hands['player'])
-                elif best_hands['is_best']:
-                    draw_players = []
+            #
+            # else:
+            #     hands = value
+            #     best_hands = get_best_hands(best_hands, hands)
+            #
+            #     # ドローのプレイヤーを配列にぶち込む
+            #     if best_hands['is_draw'] and best_hands['is_best'] and len(draw_players) == 0:
+            #         draw_players.append(best_hands['player'])
+            #         draw_players.append(hands['player'])
+            #     elif best_hands['is_draw'] and best_hands['is_best']:
+            #         draw_players.append(hands['player'])
+            #     elif best_hands['is_best']:
+            #         draw_players = []
 
         # winner処理
-        if len(draw_players) == 0:
-            win_count[best_hands['player']] += 1
-        # ドロー処理
-        else:
-            for player in draw_players:
-                win_count[player] += 1 / len(draw_players)
+        # if len(draw_players) == 0:
+        #     win_count[best_hands['player']] += 1
+        # # ドロー処理
+        # else:
+        #     for player in draw_players:
+        #         win_count[player] += 1 / len(draw_players)
 
         loop_count += 1
 
